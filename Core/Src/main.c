@@ -6,6 +6,9 @@
   ******************************************************************************
   * @attention
   *
+  * @author         : HEITOR SOUSA
+  * @e-mail         : heitor_hss@hotmail.com
+  *
   * Copyright (c) 2022 STMicroelectronics.
   * All rights reserved.
   *
@@ -79,14 +82,25 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 unsigned char data_in_uart1[401] = {0};
-bool ctrl = false;
+unsigned char data_in_uart2[61] = {0};
+
+bool ctrl_uart1 = false;
+bool ctrl_uart2 = false;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	MX_USART1_UART_Init();
-	HAL_UART_Receive_IT(&huart1, data_in_uart1, 400);
-	ctrl = true;
-	//HAL_GPIO_TogglePin(LED_PC13_GPIO_Port, LED_PC13_Pin);
+	if(huart -> Instance == USART1)
+	{
+		MX_USART1_UART_Init();
+		HAL_UART_Receive_IT(&huart1, data_in_uart1, 400);
+		ctrl_uart1 = true;
+	}
+	if(huart -> Instance == USART2)
+	{
+		MX_USART2_UART_Init();
+		HAL_UART_Receive_IT(&huart2, data_in_uart2, 60);
+		ctrl_uart2 = true;
+	}
 }
 /* USER CODE END 0 */
 
@@ -97,17 +111,25 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	unsigned char data_filter[100] = {0};
+	unsigned char data_filter_uart1[100] = {0};
+	unsigned char data_filter_uart2[100] = {0};
 
-	unsigned char error_msg[5] = {0};
-	error_msg[0] = 0x4E;
-	error_msg[1] = 0x53; //mensagem de erro: "NS" no signal
+	unsigned char error_msg_NS[5] = {0};
+	error_msg_NS[0] = 0x4E;
+	error_msg_NS[1] = 0x53; //mensagem de erro: "NS" no signal
+
+	unsigned char error_msg_ID[5] = {0};
+	error_msg_ID[0] = 0x49;
+	error_msg_ID[1] = 0x44; //mensagem de erro: "ID" invalid data
+
+	unsigned char error_msg_NC[5] = {0};
+	error_msg_NC[0] = 0x4E;
+	error_msg_NC[1] = 0x43; // mensagem de erro: "NC" no connectivity
 
 	unsigned char send_msg[2] = {0};
 	send_msg[0] = 0x1A;  //send msg = ctrl+z
 
-	//unsigned char send_uart2[300] = {0};
-
+	bool ctrl_creg_loop = false;
 
 	// DEFININDO COMANDOS AT
 	unsigned char at_command[11][50] = {{0},{0}};
@@ -383,28 +405,60 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_IT(&huart1, data_in_uart1, 400);
+  HAL_UART_Receive_IT(&huart2, data_in_uart2, 60);
+
+  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_SET);
+  HAL_Delay(30000);
+
+  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+  while (ctrl_creg_loop == false)
+  {
+	  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+	  HAL_Delay(500);
+	  if (ctrl_uart2 == true)
+	  {
+		  for (uint8_t a = 0; a<=60; a++)
+		  {
+			  if ((data_in_uart2[a] == 0x2B) && (data_in_uart2[a+1] == 0x43) && (data_in_uart2[a+2] == 0x52) && (data_in_uart2[a+3] == 0x45)
+					  && (data_in_uart2[a+4] == 0x47) && (data_in_uart2[a+5] == 0x3A))//filtrar dados +CREG:
+  			  {
+				  for(uint8_t b = 0; b<=10; b++)
+				  {
+					  data_filter_uart2[b] = data_in_uart2[a+b];
+				  }
+				  break;
+  			  }
+		  }
+	  }
+	  if ((data_filter_uart2[9] == 0x31) || (data_filter_uart2[9] == 0x35))
+	  {
+		  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+		  ctrl_creg_loop = true;
+	  }
+	  else
+	  {
+		  HAL_UART_Transmit(&huart1, (unsigned char *)error_msg_NC, 10, 100);
+	  }
+  }
+  ctrl_creg_loop = false;
+  //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
 
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT], strlen((const char *)at_command[AT]), 100);
   HAL_Delay(500);
-
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CFUN], strlen((const char *)at_command[AT_CFUN]), 100);
   HAL_Delay(500);
-
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CPIN], strlen((const char *)at_command[AT_CPIN]), 100);
   HAL_Delay(500);
-
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
   HAL_Delay(500);
-
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSQ], strlen((const char *)at_command[AT_CSQ]), 100);
   HAL_Delay(500);
-
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSTT], strlen((const char *)at_command[AT_CSTT]), 100);
   HAL_Delay(500);
-
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIICR], strlen((const char *)at_command[AT_CIICR]), 100);
   HAL_Delay(5000);
-
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIFSR], strlen((const char *)at_command[AT_CIFSR]), 100);
   HAL_Delay(5000);
 
@@ -414,27 +468,80 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (ctrl == true)
+	  if (ctrl_uart1 == true)
 	  {
 		  for (uint8_t i = 0; i<=400; i++)
 		  	{
 		  		if ((data_in_uart1[i] == 0x24) && (data_in_uart1[i+1] == 0x47) && (data_in_uart1[i+2] == 0x50) && (data_in_uart1[i+3] == 0x47)
 		  				&& (data_in_uart1[i+4] == 0x4C) && (data_in_uart1[i+5] == 0x4C))//filtrar dados GPGLL
 		  		{
-		  			HAL_GPIO_TogglePin(LED_PC13_GPIO_Port, LED_PC13_Pin);
 		  			for(uint8_t j = 0; j<=43; j++)
 		  			{
-		  				data_filter[j] = data_in_uart1[i+j];
+		  				data_filter_uart1[j] = data_in_uart1[i+j];
 		  			}
-		  			if ((data_filter[6] == 0x2C) && (data_filter[17] == 0x2C) && ((data_filter[18] == 0x4E) || (data_filter[18] == 0x53))
-		  					&& (data_filter[19] == 0x2C))//gambiarra
-		  			{
-		  				break;
-		  			}
+		  			break;
 		  		}
 		  	}
-		  if (data_filter[7] == 0x2C) //0x2C é o caractere ascii ","
+
+		  if (data_filter_uart1[7] == 0x2C) //0x2C é o caractere ascii ","
 		  {
+			  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+			  while (ctrl_creg_loop == false)
+			  {
+				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+			  	  HAL_Delay(500);
+			  	  if (ctrl_uart2 == true)
+			  	  {
+			  		  for (uint8_t a = 0; a<=60; a++)
+			  		  {
+			  			  if ((data_in_uart2[a] == 0x2B) && (data_in_uart2[a+1] == 0x43) && (data_in_uart2[a+2] == 0x52) && (data_in_uart2[a+3] == 0x45)
+			  					  && (data_in_uart2[a+4] == 0x47) && (data_in_uart2[a+5] == 0x3A))//filtrar dados +CREG:
+			  			  {
+			  				  for(uint8_t b = 0; b<=10; b++)
+			  				  {
+			  					  data_filter_uart2[b] = data_in_uart2[a+b];
+			  				  }
+			  				  break;
+			  			  }
+			  		  }
+			  	  }
+			  	  if ((data_filter_uart2[9] == 0x31) || (data_filter_uart2[9] == 0x35))
+			  	  {
+			  		  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+			  		  ctrl_creg_loop = true;
+			  	  }
+			  	  else
+			  	  {
+			  		  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+			  		  //reset SIM800L
+			  		  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
+			  		  HAL_Delay(1000);
+			  		  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_SET);
+			  		  HAL_Delay(30000);
+
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT], strlen((const char *)at_command[AT]), 100);
+			  		  HAL_Delay(500);
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CFUN], strlen((const char *)at_command[AT_CFUN]), 100);
+			  		  HAL_Delay(500);
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CPIN], strlen((const char *)at_command[AT_CPIN]), 100);
+			  		  HAL_Delay(500);
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+			  		  HAL_Delay(500);
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSQ], strlen((const char *)at_command[AT_CSQ]), 100);
+			  		  HAL_Delay(500);
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSTT], strlen((const char *)at_command[AT_CSTT]), 100);
+			  		  HAL_Delay(500);
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIICR], strlen((const char *)at_command[AT_CIICR]), 100);
+			  		  HAL_Delay(5000);
+			  		  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIFSR], strlen((const char *)at_command[AT_CIFSR]), 100);
+			  		  HAL_Delay(5000);
+			  	  }
+			  	  HAL_GPIO_TogglePin(LED_PC13_GPIO_Port, LED_PC13_Pin);
+			  	  HAL_Delay(500);
+			  }
+			  ctrl_creg_loop = false;
+			  //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
+
 			  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
 			  HAL_Delay(5000);
 
@@ -443,35 +550,152 @@ int main(void)
 
 			  HAL_UART_Transmit(&huart2, (unsigned char *)mqtt_packt_error, 36, 100);
 
-			  HAL_UART_Transmit(&huart2, (unsigned char *)error_msg, strlen((const char *)error_msg), 100);
+			  HAL_UART_Transmit(&huart2, (unsigned char *)error_msg_NS, strlen((const char *)error_msg_NS), 100);
 			  HAL_UART_Transmit(&huart2, (unsigned char *)send_msg, strlen((const char *)send_msg), 100);
 			  HAL_Delay(5000);
 
 			  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);
 			  HAL_Delay(5000);
-
-			  //HAL_GPIO_TogglePin(LED_PC13_GPIO_Port, LED_PC13_Pin);
 		  }
 		  else
 		  {
-			  if ((data_filter[31] == 0x2C) && ((data_filter[32] == 0x45) || (data_filter[32] == 0x57)) && ((data_filter[33] == 0x2C)))
+			  if ((data_filter_uart1[31] == 0x2C) && ((data_filter_uart1[32] == 0x45) || (data_filter_uart1[32] == 0x57)) && ((data_filter_uart1[33] == 0x2C)))
 				{
-				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
-				  HAL_Delay(5000);
+				  if ((data_filter_uart1[6] == 0x2C) && (data_filter_uart1[17] == 0x2C) && ((data_filter_uart1[18] == 0x4E) || (data_filter_uart1[18] == 0x53))
+				  		  					&& (data_filter_uart1[19] == 0x2C))//gambiarra
+				  {
+					  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+					  while (ctrl_creg_loop == false)
+					  {
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+						  HAL_Delay(500);
+						  if (ctrl_uart2 == true)
+						  {
+							  for (uint8_t a = 0; a<=60; a++)
+							  {
+								  if ((data_in_uart2[a] == 0x2B) && (data_in_uart2[a+1] == 0x43) && (data_in_uart2[a+2] == 0x52) && (data_in_uart2[a+3] == 0x45)
+										  && (data_in_uart2[a+4] == 0x47) && (data_in_uart2[a+5] == 0x3A))//filtrar dados +CREG:
+					  			  {
+									  for(uint8_t b = 0; b<=10; b++)
+									  {
+										  data_filter_uart2[b] = data_in_uart2[a+b];
+									  }
+									  break;
+					  			  }
+							  }
+						  }
+						  if ((data_filter_uart2[9] == 0x31) || (data_filter_uart2[9] == 0x35))
+						  {
+							  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+							  ctrl_creg_loop = true;
+						  }
+						  else
+						  {
+							  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+							  //reset SIM800L
+							  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
+							  HAL_Delay(1000);
+							  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_SET);
+							  HAL_Delay(30000);
 
-				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSEND], strlen((const char *)at_command[AT_CIPSEND]), 100);
-				  HAL_Delay(2000);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT], strlen((const char *)at_command[AT]), 100);
+							  HAL_Delay(500);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CFUN], strlen((const char *)at_command[AT_CFUN]), 100);
+							  HAL_Delay(500);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CPIN], strlen((const char *)at_command[AT_CPIN]), 100);
+							  HAL_Delay(500);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+							  HAL_Delay(500);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSQ], strlen((const char *)at_command[AT_CSQ]), 100);
+							  HAL_Delay(500);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSTT], strlen((const char *)at_command[AT_CSTT]), 100);
+							  HAL_Delay(500);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIICR], strlen((const char *)at_command[AT_CIICR]), 100);
+							  HAL_Delay(5000);
+							  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIFSR], strlen((const char *)at_command[AT_CIFSR]), 100);
+							  HAL_Delay(5000);
+						  }
+						  HAL_GPIO_TogglePin(LED_PC13_GPIO_Port, LED_PC13_Pin);
+						  HAL_Delay(500);
+					  }
+					  ctrl_creg_loop = false;
+					  //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
 
-				  HAL_UART_Transmit(&huart2, (unsigned char *)mqtt_packt_msg, 36, 100);
-				  HAL_UART_Transmit(&huart2, (unsigned char *)data_filter, 43, 100);
-				  HAL_UART_Transmit(&huart2, (unsigned char *)send_msg, strlen((const char *)send_msg), 100);
-				  HAL_Delay(5000);
+					  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
+					  HAL_Delay(5000);
 
-				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);
-				  HAL_Delay(5000);
+					  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSEND], strlen((const char *)at_command[AT_CIPSEND]), 100);
+					  HAL_Delay(2000);
+
+					  HAL_UART_Transmit(&huart2, (unsigned char *)mqtt_packt_msg, 36, 100);
+					  HAL_UART_Transmit(&huart2, (unsigned char *)data_filter_uart1, 43, 100);
+					  HAL_UART_Transmit(&huart2, (unsigned char *)send_msg, strlen((const char *)send_msg), 100);
+					  HAL_Delay(5000);
+
+					  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);
+					  HAL_Delay(5000);
+				  }
 				}
 			  else
 			  {
+				  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+				  while (ctrl_creg_loop == false)
+				  {
+					  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+					  HAL_Delay(500);
+					  if (ctrl_uart2 == true)
+					  {
+						  for (uint8_t a = 0; a<=60; a++)
+						  {
+							  if ((data_in_uart2[a] == 0x2B) && (data_in_uart2[a+1] == 0x43) && (data_in_uart2[a+2] == 0x52) && (data_in_uart2[a+3] == 0x45)
+									  && (data_in_uart2[a+4] == 0x47) && (data_in_uart2[a+5] == 0x3A))//filtrar dados +CREG:
+				  			  {
+								  for(uint8_t b = 0; b<=10; b++)
+								  {
+									  data_filter_uart2[b] = data_in_uart2[a+b];
+								  }
+								  break;
+				  			  }
+						  }
+					  }
+					  if ((data_filter_uart2[9] == 0x31) || (data_filter_uart2[9] == 0x35))
+					  {
+						  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+						  ctrl_creg_loop = true;
+					  }
+					  else
+					  {
+						  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+						  //reset SIM800L
+						  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
+						  HAL_Delay(1000);
+						  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_SET);
+						  HAL_Delay(30000);
+
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT], strlen((const char *)at_command[AT]), 100);
+						  HAL_Delay(500);
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CFUN], strlen((const char *)at_command[AT_CFUN]), 100);
+						  HAL_Delay(500);
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CPIN], strlen((const char *)at_command[AT_CPIN]), 100);
+						  HAL_Delay(500);
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+						  HAL_Delay(500);
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSQ], strlen((const char *)at_command[AT_CSQ]), 100);
+						  HAL_Delay(500);
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSTT], strlen((const char *)at_command[AT_CSTT]), 100);
+						  HAL_Delay(500);
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIICR], strlen((const char *)at_command[AT_CIICR]), 100);
+						  HAL_Delay(5000);
+						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIFSR], strlen((const char *)at_command[AT_CIFSR]), 100);
+						  HAL_Delay(5000);
+					  }
+	  			  	  HAL_GPIO_TogglePin(LED_PC13_GPIO_Port, LED_PC13_Pin);
+	  			  	  HAL_Delay(500);
+				  }
+				  ctrl_creg_loop = false;
+				  //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
+
+
 				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
 				  HAL_Delay(5000);
 
@@ -479,19 +703,15 @@ int main(void)
 				  HAL_Delay(2000);
 	  			  HAL_UART_Transmit(&huart2, (unsigned char *)mqtt_packt_error, 36, 100);
 
-				  HAL_UART_Transmit(&huart2, (unsigned char *)error_msg, strlen((const char *)error_msg), 100);
+				  HAL_UART_Transmit(&huart2, (unsigned char *)error_msg_ID, strlen((const char *)error_msg_ID), 100);
 				  HAL_UART_Transmit(&huart2, (unsigned char *)send_msg, strlen((const char *)send_msg), 100);
 				  HAL_Delay(5000);
 
 				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);
 				  HAL_Delay(5000);
 			  }
-
-
-			  //HAL_GPIO_TogglePin(LED_PC13_GPIO_Port, LED_PC13_Pin);
 		  }
-
-		  ctrl = false;
+		  ctrl_uart1 = false;
 	  }
 
     /* USER CODE END WHILE */

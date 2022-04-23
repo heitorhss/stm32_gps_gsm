@@ -1,6 +1,6 @@
 ################################################################################
 # Automatically-generated file. Do not edit!
-# Toolchain: GNU Tools for STM32 (9-2020-q2-update)
+# Toolchain: GNU Tools for STM32 (10.3-2021.10)
 ################################################################################
 
 -include ../makefile.init
@@ -43,11 +43,17 @@ BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ART
 EXECUTABLES += \
 stm32_gps_gsm.elf \
 
+MAP_FILES += \
+stm32_gps_gsm.map \
+
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
 stm32_gps_gsm.list \
+
+OBJCOPY_HEX += \
+stm32_gps_gsm.hex \
 
 OBJCOPY_BIN += \
 stm32_gps_gsm.bin \
@@ -60,8 +66,8 @@ all: main-build
 main-build: stm32_gps_gsm.elf secondary-outputs
 
 # Tool invocations
-stm32_gps_gsm.elf: $(OBJS) $(USER_OBJS) D:\firmware_CUBE\stm32_gps_gsm\STM32F030C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "stm32_gps_gsm.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"D:\firmware_CUBE\stm32_gps_gsm\STM32F030C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stm32_gps_gsm.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+stm32_gps_gsm.elf stm32_gps_gsm.map: $(OBJS) $(USER_OBJS) D:\firmware\stm32_gps_gsm\STM32F030C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "stm32_gps_gsm.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"D:\firmware\stm32_gps_gsm\STM32F030C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stm32_gps_gsm.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -75,6 +81,11 @@ stm32_gps_gsm.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
+stm32_gps_gsm.hex: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O ihex $(EXECUTABLES) "stm32_gps_gsm.hex"
+	@echo 'Finished building: $@'
+	@echo ' '
+
 stm32_gps_gsm.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "stm32_gps_gsm.bin"
 	@echo 'Finished building: $@'
@@ -82,10 +93,10 @@ stm32_gps_gsm.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 
 # Other Targets
 clean:
-	-$(RM) default.size.stdout stm32_gps_gsm.bin stm32_gps_gsm.elf stm32_gps_gsm.list
+	-$(RM) default.size.stdout stm32_gps_gsm.bin stm32_gps_gsm.elf stm32_gps_gsm.hex stm32_gps_gsm.list stm32_gps_gsm.map
 	-@echo ' '
 
-secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_BIN)
+secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_HEX) $(OBJCOPY_BIN)
 
 fail-specified-linker-script-missing:
 	@echo 'Error: Cannot find the specified linker script. Check the linker settings in the build configuration.'
