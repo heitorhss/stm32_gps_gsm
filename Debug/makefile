@@ -60,8 +60,8 @@ all: main-build
 main-build: stm32_gps_gsm.elf secondary-outputs
 
 # Tool invocations
-stm32_gps_gsm.elf: $(OBJS) $(USER_OBJS) /home/heitor/STM32CubeIDE/workspace_1.8.0/stm32_gps_gsm/STM32F030C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "stm32_gps_gsm.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"/home/heitor/STM32CubeIDE/workspace_1.8.0/stm32_gps_gsm/STM32F030C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stm32_gps_gsm.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+stm32_gps_gsm.elf: $(OBJS) $(USER_OBJS) D:\firmware_CUBE\stm32_gps_gsm\STM32F030C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "stm32_gps_gsm.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"D:\firmware_CUBE\stm32_gps_gsm\STM32F030C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stm32_gps_gsm.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
