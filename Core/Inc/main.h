@@ -61,6 +61,10 @@ void Error_Handler(void);
 #define LED_PC13_GPIO_Port GPIOC
 #define RESET_SIM800l_Pin GPIO_PIN_15
 #define RESET_SIM800l_GPIO_Port GPIOA
+#define ERROR_1_Pin GPIO_PIN_5
+#define ERROR_1_GPIO_Port GPIOB
+#define ERROR_2_Pin GPIO_PIN_8
+#define ERROR_2_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

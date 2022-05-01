@@ -114,13 +114,13 @@ int main(void)
 	unsigned char data_filter_uart1[100] = {0};
 	unsigned char data_filter_uart2[100] = {0};
 
-	unsigned char error_msg_NS[5] = {0};
-	error_msg_NS[0] = 0x4E;
-	error_msg_NS[1] = 0x53; //mensagem de erro: "NS" no signal
+	//unsigned char error_msg_NS[5] = {0}; // VARIAVEL EM DESUSO
+	//error_msg_NS[0] = 0x4E;
+	//error_msg_NS[1] = 0x53; //mensagem de erro: "NS" no signal
 
-	unsigned char error_msg_ID[5] = {0};
-	error_msg_ID[0] = 0x49;
-	error_msg_ID[1] = 0x44; //mensagem de erro: "ID" invalid data
+	//unsigned char error_msg_ID[5] = {0}; // VARIAVEL EM DESUSO
+	//error_msg_ID[0] = 0x49;
+	//error_msg_ID[1] = 0x44; //mensagem de erro: "ID" invalid data
 
 	unsigned char error_msg_NC[5] = {0};
 	error_msg_NC[0] = 0x4E;
@@ -130,6 +130,7 @@ int main(void)
 	send_msg[0] = 0x1A;  //send msg = ctrl+z
 
 	bool ctrl_creg_loop = false;
+	uint8_t cont_loop1 = 0;
 
 	// DEFININDO COMANDOS AT
 	unsigned char at_command[11][50] = {{0},{0}};
@@ -341,7 +342,9 @@ int main(void)
 	mqtt_packt_msg[34] = 0x70; // topic p
 	mqtt_packt_msg[35] = 0x73; // topic s
 
-	unsigned char mqtt_packt_error[50] = {0};
+
+	//NAO TRANSMITIR ERROS POR ENQUANTO
+	/*unsigned char mqtt_packt_error[50] = {0};
 
 	mqtt_packt_error[0]  = 0x10; // mqtt connect packet
 	mqtt_packt_error[1]  = 0x13; // remaining length
@@ -378,7 +381,7 @@ int main(void)
 	mqtt_packt_error[32] = 0x5F; // topic _
 	mqtt_packt_error[33] = 0x67; // topic g
 	mqtt_packt_error[34] = 0x70; // topic p
-	mqtt_packt_error[35] = 0x73; // topic s
+	mqtt_packt_error[35] = 0x73; // topic s*/
 
   /* USER CODE END 1 */
 
@@ -412,7 +415,7 @@ int main(void)
   HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_SET);
   HAL_Delay(30000);
 
-  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+  //INICIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
   while (ctrl_creg_loop == false)
   {
 	  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
@@ -439,11 +442,16 @@ int main(void)
 	  }
 	  else
 	  {
+		  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+		  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
 		  HAL_UART_Transmit(&huart1, (unsigned char *)error_msg_NC, 10, 100);
 	  }
   }
   ctrl_creg_loop = false;
   //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
+
+  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_RESET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_RESET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
 
   HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT], strlen((const char *)at_command[AT]), 100);
   HAL_Delay(500);
@@ -483,9 +491,9 @@ int main(void)
 		  		}
 		  	}
 
-		  if (data_filter_uart1[7] == 0x2C) //0x2C é o caractere ascii ","
+		  if (data_filter_uart1[7] == 0x2C) //0x2C é o caractere ascii "," , ou seja, não há sinal de GPS
 		  {
-			  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+			  //INICIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
 			  while (ctrl_creg_loop == false)
 			  {
 				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
@@ -505,13 +513,16 @@ int main(void)
 			  			  }
 			  		  }
 			  	  }
-			  	  if ((data_filter_uart2[9] == 0x31) || (data_filter_uart2[9] == 0x35))
+			  	  if ((data_filter_uart2[9] == 0x31) || (data_filter_uart2[9] == 0x35)) // se a resposta do CREG é '1' ou '5' (módulo registrado na rede)
 			  	  {
 			  		  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
 			  		  ctrl_creg_loop = true;
 			  	  }
-			  	  else
+			  	  else // se o módulo não estiver registrado na rede
 			  	  {
+			  		  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+			  		  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+
 			  		  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
 			  		  //reset SIM800L
 			  		  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
@@ -542,7 +553,8 @@ int main(void)
 			  ctrl_creg_loop = false;
 			  //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
 
-			  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
+			  // NÃO ENVIAR MAIS O SÍMBOLO DE 'NS - NO SIGNAL', EM VEZ DISSO, SINALIZAR O LED ERROR_1 PB5
+			  /*HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
 			  HAL_Delay(5000);
 
 			  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSEND], strlen((const char *)at_command[AT_CIPSEND]), 100);
@@ -554,7 +566,9 @@ int main(void)
 			  HAL_UART_Transmit(&huart2, (unsigned char *)send_msg, strlen((const char *)send_msg), 100);
 			  HAL_Delay(5000);
 
-			  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);
+			  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);*/
+			  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_SET);   // SIGNIFICA QUE O SIMBOLO DE NS DEVERIA TER SIDO ENVIADO
+			  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_RESET); // SIGNIFICA QUE O SIMBOLO DE NS DEVERIA TER SIDO ENVIADO
 			  HAL_Delay(5000);
 		  }
 		  else
@@ -562,9 +576,9 @@ int main(void)
 			  if ((data_filter_uart1[31] == 0x2C) && ((data_filter_uart1[32] == 0x45) || (data_filter_uart1[32] == 0x57)) && ((data_filter_uart1[33] == 0x2C)))
 				{
 				  if ((data_filter_uart1[6] == 0x2C) && (data_filter_uart1[17] == 0x2C) && ((data_filter_uart1[18] == 0x4E) || (data_filter_uart1[18] == 0x53))
-				  		  					&& (data_filter_uart1[19] == 0x2C))//gambiarra
+				  		  					&& (data_filter_uart1[19] == 0x2C))// gambiarra - SE O DADO DE GPS CAPTURADO FOR VÁLIDO, ELE É TRANSMITIDO
 				  {
-					  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+					  //INICIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
 					  while (ctrl_creg_loop == false)
 					  {
 						  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
@@ -591,6 +605,9 @@ int main(void)
 						  }
 						  else
 						  {
+							  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+							  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+
 							  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
 							  //reset SIM800L
 							  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
@@ -633,12 +650,14 @@ int main(void)
 					  HAL_Delay(5000);
 
 					  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);
+					  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_RESET); // SIGNIFICA QUE NAO HA ERRO DE NS - NO SIGNAL
+					  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_RESET); // SIGNIFICA QUE NAO HA ERRO DE ID - INVALID DATA
 					  HAL_Delay(5000);
 				  }
 				}
 			  else
 			  {
-				  //INÍCIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+				  //INICIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
 				  while (ctrl_creg_loop == false)
 				  {
 					  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
@@ -665,6 +684,9 @@ int main(void)
 					  }
 					  else
 					  {
+						  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+						  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+
 						  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
 						  //reset SIM800L
 						  HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
@@ -695,8 +717,8 @@ int main(void)
 				  ctrl_creg_loop = false;
 				  //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
 
-
-				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
+				  // NÃO ENVIAR MAIS O SÍMBOLO DE 'NS - NO SIGNAL', EM VEZ DISSO, SINALIZAR O LED ERROR_1 PB5
+				  /*HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSTART], strlen((const char *)at_command[AT_CIPSTART]), 100);
 				  HAL_Delay(5000);
 
 				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPSEND], strlen((const char *)at_command[AT_CIPSEND]), 100);
@@ -707,13 +729,90 @@ int main(void)
 				  HAL_UART_Transmit(&huart2, (unsigned char *)send_msg, strlen((const char *)send_msg), 100);
 				  HAL_Delay(5000);
 
-				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);
+				  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIPCLOSE], strlen((const char *)at_command[AT_CIPCLOSE]), 100);*/
+				  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_RESET); // SIGNIFICA QUE O SIMBOLO DE ID DEVERIA TER SIDO ENVIADO
+				  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_SET); // SIGNIFICA QUE O SIMBOLO DE ID DEVERIA TER SIDO ENVIADO
 				  HAL_Delay(5000);
 			  }
 		  }
 		  ctrl_uart1 = false;
-	  }
 
+		  //RESETAR O SIM800L A CADA 15 CICLOS PARA EVITAR QUE FIQUE PRESO EM ERROS
+		  cont_loop1++;
+		  if (cont_loop1 == 15)
+		  {
+			  for(uint8_t i = 0; i<100; i++)
+			  {
+				  HAL_GPIO_TogglePin(ERROR_1_GPIO_Port, ERROR_1_Pin);
+				  HAL_GPIO_TogglePin(ERROR_2_GPIO_Port, ERROR_2_Pin);
+				  HAL_Delay(100);
+			  }
+			  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_RESET);
+			  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_RESET);
+
+			  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_RESET); // SIGNIFICA QUE O SIMBOLO DE ID DEVERIA TER SIDO ENVIADO
+			  	HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_SET); // SIGNIFICA QUE O SIMBOLO DE ID DEVERIA TER SIDO ENVIADO
+
+			  	HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
+			    HAL_Delay(1000);
+			    HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_SET);
+			    HAL_Delay(30000);
+
+			    //INICIO VERIFICAÇÃO DE CONECTIVIDADE GPRS
+			    while (ctrl_creg_loop == false)
+			    {
+			  	  HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+			  	  HAL_Delay(500);
+			  	  if (ctrl_uart2 == true)
+			  	  {
+			  		  for (uint8_t a = 0; a<=60; a++)
+			  		  {
+			  			  if ((data_in_uart2[a] == 0x2B) && (data_in_uart2[a+1] == 0x43) && (data_in_uart2[a+2] == 0x52) && (data_in_uart2[a+3] == 0x45)
+			  					  && (data_in_uart2[a+4] == 0x47) && (data_in_uart2[a+5] == 0x3A))//filtrar dados +CREG:
+			    			  {
+			  				  for(uint8_t b = 0; b<=10; b++)
+			  				  {
+			  					  data_filter_uart2[b] = data_in_uart2[a+b];
+			  				  }
+			  				  break;
+			    			  }
+			  		  }
+			  	  }
+			  	  if ((data_filter_uart2[9] == 0x31) || (data_filter_uart2[9] == 0x35))
+			  	  {
+			  		  HAL_UART_Transmit(&huart1, (unsigned char *)data_filter_uart2, 10, 100);
+			  		  ctrl_creg_loop = true;
+			  	  }
+			  	  else
+			  	  {
+			  		  HAL_GPIO_WritePin(ERROR_1_GPIO_Port, ERROR_1_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+			  		  HAL_GPIO_WritePin(ERROR_2_GPIO_Port, ERROR_2_Pin, GPIO_PIN_SET); // SIGNIFICA QUE HA PROBLEMA DE CONECTIVIDADE GPRS
+			  		  HAL_UART_Transmit(&huart1, (unsigned char *)error_msg_NC, 10, 100);
+			  	  }
+			    }
+			    ctrl_creg_loop = false;
+			    //FIM VERIFICAÇÃO DE CONECTIVIDADE GPRS
+
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT], strlen((const char *)at_command[AT]), 100);
+			    HAL_Delay(500);
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CFUN], strlen((const char *)at_command[AT_CFUN]), 100);
+			    HAL_Delay(500);
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CPIN], strlen((const char *)at_command[AT_CPIN]), 100);
+			    HAL_Delay(500);
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CREG], strlen((const char *)at_command[AT_CREG]), 100);
+			    HAL_Delay(500);
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSQ], strlen((const char *)at_command[AT_CSQ]), 100);
+			    HAL_Delay(500);
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CSTT], strlen((const char *)at_command[AT_CSTT]), 100);
+			    HAL_Delay(500);
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIICR], strlen((const char *)at_command[AT_CIICR]), 100);
+			    HAL_Delay(5000);
+			    HAL_UART_Transmit(&huart2, (unsigned char *)at_command[AT_CIFSR], strlen((const char *)at_command[AT_CIFSR]), 100);
+			    HAL_Delay(5000);
+
+			  cont_loop1 = 0;
+		  }
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -860,12 +959,16 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_PC13_GPIO_Port, LED_PC13_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(RESET_SIM800l_GPIO_Port, RESET_SIM800l_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, ERROR_1_Pin|ERROR_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_PC13_Pin */
   GPIO_InitStruct.Pin = LED_PC13_Pin;
@@ -880,6 +983,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(RESET_SIM800l_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : ERROR_1_Pin ERROR_2_Pin */
+  GPIO_InitStruct.Pin = ERROR_1_Pin|ERROR_2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
